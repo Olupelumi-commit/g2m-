@@ -1,0 +1,154 @@
+{
+  "name": "G2M 05 - Lead Research",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manualtrigger_9904189",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$json; const company=d.company||d.company_name||''; const domain=d.domain||''; return [{json:{...d,queries:[`${company} latest news`,`${company} hiring`,`${company} funding`,`${domain} customer support`,`${company} leadership`]}}];"
+      },
+      "id": "researchqueries_8616470",
+      "name": "Research Queries",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.SEARCH_API_URL || 'https://api.tavily.com/search'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({api_key:$env.SEARCH_API_KEY,query:($json.queries||[]).join(' OR '),search_depth:'advanced',max_results:10})}}"
+      },
+      "id": "webresearch_4520159",
+      "name": "Web Research",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.LLM_API_URL || 'https://api.openai.com/v1/chat/completions'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.LLM_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({model:$env.LLM_MODEL||'gpt-4o-mini',messages:[{role:'system',content:'Analyze the research and return JSON: company_summary, person_summary, observable_pain_points, trigger_events, evidence_urls, recommended_outreach_angle, confidence.'},{role:'user',content:JSON.stringify({lead:$json,research:$json.results||$json})}],temperature:0.2})}}"
+      },
+      "id": "researchsummary_8921885",
+      "name": "Research Summary",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.choices?.[0]?.message?.content||$json.output||$json; let r; try{r=typeof raw==='string'?JSON.parse(raw.replace(/^```json\\s*|\\s*```$/g,'')):raw}catch(e){r={raw}} return [{json:{...$('Research Queries').first().json,research:r}}];"
+      },
+      "id": "parseresearch_2595435",
+      "name": "Parse Research",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Research Queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Queries": {
+      "main": [
+        [
+          {
+            "node": "Web Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Research": {
+      "main": [
+        [
+          {
+            "node": "Research Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Research Summary": {
+      "main": [
+        [
+          {
+            "node": "Parse Research",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

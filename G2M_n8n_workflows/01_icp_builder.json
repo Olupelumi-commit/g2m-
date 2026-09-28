@@ -1,0 +1,147 @@
+{
+  "name": "G2M 01 - ICP Builder",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "g2m/icp-builder",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook_996461",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? $json;\nreturn [{json:{\n  campaign_name: body.campaign_name || 'Untitled Campaign',\n  offer: body.offer || '',\n  target_market: body.target_market || '',\n  raw_criteria: body.criteria || body.icp || '',\n  requested_limit: Number(body.limit || 100),\n  created_at: new Date().toISOString()\n}}];"
+      },
+      "id": "normalizeicpinput_3394341",
+      "name": "Normalize ICP Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.LLM_API_URL || 'https://api.openai.com/v1/chat/completions'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.LLM_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({model:$env.LLM_MODEL || 'gpt-4o-mini',messages:[{role:'system',content:'Convert the supplied GTM criteria into strict JSON with fields: industries, locations, company_size_min, company_size_max, target_titles, technologies, pain_signals, intent_signals, exclusions, search_queries. Return JSON only.'},{role:'user',content:JSON.stringify($json)}],temperature:0.1})}}"
+      },
+      "id": "generateicp_9788669",
+      "name": "Generate ICP",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.choices?.[0]?.message?.content ?? $json.output ?? $json;\nlet parsed;\ntry { parsed = typeof raw === 'string' ? JSON.parse(raw.replace(/^```json\\s*|\\s*```$/g,'')) : raw; }\ncatch(e) { parsed = {parse_error:true, raw}; }\nreturn [{json:{...$('Normalize ICP Input').first().json, icp:parsed}}];"
+      },
+      "id": "parseicp_4949683",
+      "name": "Parse ICP",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}"
+      },
+      "id": "respond_4769922",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize ICP Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize ICP Input": {
+      "main": [
+        [
+          {
+            "node": "Generate ICP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate ICP": {
+      "main": [
+        [
+          {
+            "node": "Parse ICP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse ICP": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

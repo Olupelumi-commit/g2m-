@@ -1,0 +1,134 @@
+{
+  "name": "G2M 04 - Lead Qualification",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manualtrigger_9904189",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d=$json, icp=d.icp||{};\nlet score=0, reasons=[];\nconst size=Number(d.enrichment?.organization?.estimated_num_employees || d.employees || 0);\nif(size && (!icp.company_size_min || size>=icp.company_size_min) && (!icp.company_size_max || size<=icp.company_size_max)){score+=25;reasons.push('company size fit')}\nconst title=(d.title||'').toLowerCase();\nif((icp.target_titles||[]).some(t=>title.includes(String(t).toLowerCase()))){score+=25;reasons.push('role fit')}\nif((d.enrichment?.organization?.industry||d.industry) && (icp.industries||[]).some(x=>String(d.enrichment?.organization?.industry||d.industry).toLowerCase().includes(String(x).toLowerCase()))){score+=20;reasons.push('industry fit')}\nif(d.intent_signals?.length || d.signals?.length){score+=20;reasons.push('intent signals')}\nif(d.email){score+=10;reasons.push('contactable')}\nreturn [{json:{...d,qualification:{score,qualified:score>=75,reasons,scored_at:new Date().toISOString()}}}];"
+      },
+      "id": "scorelead_3965969",
+      "name": "Score Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.qualification.qualified}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "qualified_9049428",
+      "name": "Qualified?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        480,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "qualifiedoutput_1699655",
+      "name": "Qualified Output",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        -80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "rejectedoutput_7992421",
+      "name": "Rejected Output",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        700,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Score Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Lead": {
+      "main": [
+        [
+          {
+            "node": "Qualified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qualified?": {
+      "main": [
+        [
+          {
+            "node": "Qualified Output",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rejected Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

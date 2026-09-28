@@ -1,0 +1,181 @@
+{
+  "name": "G2M 08 - Response Intelligence",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "g2m/inbound-response",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook_996461",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.LLM_API_URL || 'https://api.openai.com/v1/chat/completions'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.LLM_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{JSON.stringify({model:$env.LLM_MODEL||'gpt-4o-mini',messages:[{role:'system',content:'Classify this inbound B2B sales email. Return JSON with category: interested, meeting_request, question, not_interested, unsubscribe, out_of_office, other; sentiment; urgency; suggested_action; draft_reply.'},{role:'user',content:JSON.stringify($json)}],temperature:0.1})}}"
+      },
+      "id": "classifyreply_5238509",
+      "name": "Classify Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw=$json.choices?.[0]?.message?.content||$json.output||$json; let c; try{c=typeof raw==='string'?JSON.parse(raw.replace(/^```json\\s*|\\s*```$/g,'')):raw}catch(e){c={category:'other',raw}} return [{json:{...$('Webhook').first().json,classification:c}}];"
+      },
+      "id": "parseclassification_9674380",
+      "name": "Parse Classification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        460,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{$json.classification.category}}",
+              "rightValue": "unsubscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "unsubscribe_5326780",
+      "name": "Unsubscribe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{suppression:true,email:$json.email,reason:'unsubscribe',recorded_at:new Date().toISOString()}}];"
+      },
+      "id": "addsuppression_1259739",
+      "name": "Add Suppression",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        900,
+        -80
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "routetocrmhuman_1391270",
+      "name": "Route To CRM / Human",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        900,
+        120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Classify Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Reply": {
+      "main": [
+        [
+          {
+            "node": "Parse Classification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Classification": {
+      "main": [
+        [
+          {
+            "node": "Unsubscribe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unsubscribe?": {
+      "main": [
+        [
+          {
+            "node": "Add Suppression",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Route To CRM / Human",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

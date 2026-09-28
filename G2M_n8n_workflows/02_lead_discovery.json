@@ -1,0 +1,143 @@
+{
+  "name": "G2M 02 - Lead Discovery",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manualtrigger_9904189",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const icp = $json.icp || {\n  industries:['SaaS'], locations:['United States'], target_titles:['CEO','Head of Sales'],\n  search_queries:['SaaS companies hiring sales']\n};\nconst queries = icp.search_queries || [];\nreturn queries.map((q,i)=>({json:{query:q, index:i, icp}}));"
+      },
+      "id": "buildsearchjobs_8205820",
+      "name": "Build Search Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.SEARCH_API_URL || 'https://api.tavily.com/search'}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "api_key",
+              "value": "={{$env.SEARCH_API_KEY}}"
+            },
+            {
+              "name": "query",
+              "value": "={{$json.query}}"
+            },
+            {
+              "name": "max_results",
+              "value": "20"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "websearch_1089020",
+      "name": "Web Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $json.results || $json.organic || [];\nreturn results.map(r=>({json:{\n  source_url:r.url || r.link,\n  title:r.title || '',\n  snippet:r.content || r.snippet || '',\n  discovered_at:new Date().toISOString()\n}}));"
+      },
+      "id": "normalizeresults_5293564",
+      "name": "Normalize Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nreturn $input.all().filter(item=>{\n  const u = (item.json.source_url||'').toLowerCase().replace(/\\/$/,'');\n  if(!u || seen.has(u)) return false;\n  seen.add(u); return true;\n});"
+      },
+      "id": "deduplicate_1147229",
+      "name": "Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build Search Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Search Jobs": {
+      "main": [
+        [
+          {
+            "node": "Web Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Web Search": {
+      "main": [
+        [
+          {
+            "node": "Normalize Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Results": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

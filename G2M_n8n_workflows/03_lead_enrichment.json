@@ -1,0 +1,148 @@
+{
+  "name": "G2M 03 - Lead Enrichment",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manualtrigger_9904189",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i=>({json:{\n  ...i.json,\n  enrichment_key:i.json.email || i.json.domain || i.json.company_domain || i.json.source_url\n}}));"
+      },
+      "id": "prepareenrichment_2457459",
+      "name": "Prepare Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{($env.ENRICHMENT_API_URL || 'https://api.apollo.io/v1/organizations/enrich')}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{$json.domain || $json.enrichment_key}}"
+            }
+          ]
+        }
+      },
+      "id": "enrichcompany_6816371",
+      "name": "Enrich Company",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const original = $('Prepare Enrichment').first().json;\nreturn [{json:{...original, enrichment:$json, enriched_at:new Date().toISOString()}}];"
+      },
+      "id": "mergeenrichment_3766025",
+      "name": "Merge Enrichment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        660,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{($env.EMAIL_VERIFY_URL || 'https://api.hunter.io/v2/email-verifier')}}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{$json.email || ''}}"
+            },
+            {
+              "name": "api_key",
+              "value": "={{$env.EMAIL_VERIFY_API_KEY || ''}}"
+            }
+          ]
+        }
+      },
+      "id": "verifyemail_3788116",
+      "name": "Verify Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Enrich Company",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich Company": {
+      "main": [
+        [
+          {
+            "node": "Merge Enrichment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Enrichment": {
+      "main": [
+        [
+          {
+            "node": "Verify Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "00000000-0000-0000-0000-000000000000",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
